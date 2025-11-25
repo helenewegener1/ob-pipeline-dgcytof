@@ -9,9 +9,9 @@ Input/output contract:
 * Writes a gz-compressed CSV with a single column of predicted labels.
 """
 
+import argparse
 import os
 import sys
-import argparse
 import warnings
 
 import numpy as np
@@ -42,9 +42,6 @@ except ImportError as exc:  # pragma: no cover - runtime guard
     ) from exc
 
 
-VALID_LINKAGES = ["average", "complete", "ward"]  # kept for CLI parity
-
-
 def load_labels(data_file):
     data = np.loadtxt(data_file, ndmin=1)
     if data.ndim != 1:
@@ -57,6 +54,7 @@ def load_dataset(data_file):
     if data.ndim != 2:
         raise ValueError("Invalid data structure, not a 2D matrix?")
     return data
+
 
 class SimpleClassifier(nn.Module):
     def __init__(self, input_dim, num_classes):
@@ -127,9 +125,15 @@ def run_dgcytof(data, labels, random_state=42):
         "shuffle": True,
         "num_workers": 0,
     }
-    val_params = {"batch_size": min(10000, len(val_dataset)), "shuffle": False, "num_workers": 0}
+    val_params = {
+        "batch_size": min(10000, len(val_dataset)),
+        "shuffle": False,
+        "num_workers": 0,
+    }
 
-    DGCyTOF.train_model(model_fc, train_dataset, max_epochs=20, params_train=train_params)
+    DGCyTOF.train_model(
+        model_fc, train_dataset, max_epochs=20, params_train=train_params
+    )
     # Prints accuracy; side effect is fine for benchmarking visibility.
     DGCyTOF.validate_model(model_fc, val_dataset, classes, params_val=val_params)
 
@@ -168,15 +172,11 @@ def main():
         default="clustbench",
     )
 
-
     try:
         args = parser.parse_args()
     except SystemExit:
         parser.print_help()
         sys.exit(0)
-
-    if args.linkage not in VALID_LINKAGES:
-        warnings.warn(f"Ignoring linkage '{args.linkage}' (not used by DGCyTOF).")
 
     truth = load_labels(getattr(args, "data.true_labels"))
     data = getattr(args, "data.matrix")
