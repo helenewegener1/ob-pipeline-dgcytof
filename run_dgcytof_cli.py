@@ -18,12 +18,6 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-# Use the vendored DGCyTOF copy under ./dgcytof/DGCyTOF_Package
-HERE = os.path.dirname(os.path.abspath(__file__))
-LOCAL_DGCYTOF_PATH = os.path.join(HERE, "dgcytof", "DGCyTOF_Package")
-if LOCAL_DGCYTOF_PATH not in sys.path:
-    sys.path.insert(0, LOCAL_DGCYTOF_PATH)
-
 try:
     import torch
     import torch.nn as nn
@@ -34,11 +28,10 @@ except ImportError as exc:  # pragma: no cover - runtime guard
     ) from exc
 
 try:
-    import DGCyTOF
+    import dgcytof_local as DGCyTOF
 except ImportError as exc:  # pragma: no cover - runtime guard
     raise ImportError(
-        "Missing DGCyTOF package. Ensure ./dgcytof/DGCyTOF_Package is present "
-        "or install with `pip install ./dgcytof/DGCyTOF_Package`."
+        "Missing dgcytof_local module. Ensure dgcytof_local.py is present."
     ) from exc
 
 
