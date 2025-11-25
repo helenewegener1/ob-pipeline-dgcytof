@@ -51,9 +51,6 @@ def load_dataset(data_file):
 
 class SimpleClassifier(nn.Module):
     def __init__(self, input_dim, num_classes):
-        # Some environments/wrappers may pass unused keywords like `inputs`/`outputs`;
-        # ignore them to avoid torch.nn.Module.__init__ TypeError.
-
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_dim, 128),
