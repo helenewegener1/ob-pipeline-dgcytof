@@ -1,0 +1,28 @@
+name: py-old
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.8
+  - pip
+  - numpy=1.19.1
+  - scipy=1.5.2
+  - pandas=1.1.0
+  - seaborn=0.10.1
+  - matplotlib=3.3.0
+  - scikit-learn=0.23.2
+  - scikit-plot=0.3.7
+  - fastcluster=1.2.6
+  - pip:
+      - umap-learn==0.4.6
+      - umap_learn==0.4.6
+      - hdbscan==0.8.26
+      - scikit-bio==0.5.6
+      - torch==1.6.0
+      - torchvision==0.7.0
+      - tensorboard==2.3.0
+      - fcsparser==0.2.8
+      - genieclust==1.1.6
+      - wget
+      - "https://github.com/gagolews/clustering-benchmarks/releases/download/v1.1.5/clustering_benchmarks-1.1.5.tar.gz"
+      - "./dgcytof/DGCyTOF_Package"
