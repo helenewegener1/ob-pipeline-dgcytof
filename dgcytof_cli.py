@@ -118,65 +118,49 @@ class SimpleClassifier(nn.Module):
         return self.model(x)
 
 
-def run_dgcytof(data, labels, random_state=42):
+def run_dgcytof(train_data, train_labels, test_data):
     """
-    Train a small feed-forward network with the DGCyTOF helpers and return
-    predicted labels for the full dataset (1-based to match clustbench).
+    Train on the provided training dataset and predict labels for the test dataset.
     """
-    if len(data) != len(labels):
+
+    # --- Sanity check ---
+    if len(train_data) != len(train_labels):
         raise ValueError(
-            f"Number of labels ({len(labels)}) does not match number of rows in the data matrix ({len(data)})."
+            f"Training data rows ({len(train_data)}) do not match "
+            f"training labels length ({len(train_labels)})."
         )
 
-    labels_series = pd.to_numeric(pd.Series(labels), errors="coerce")
-    labels_zero_based = labels_series - 1
-    df = data.copy()
-    df["label"] = labels_zero_based
+    # Convert labels -> numeric -> 0-based
+    train_labels_series = pd.to_numeric(pd.Series(train_labels), errors="coerce")
+    train_labels_zero = train_labels_series - 1
 
-    # Use only labeled rows for training, but keep the full matrix for inference.
-    X_data_labeled, y_data, _ = DGCyTOF.preprocessing(df, [])
-    X_full = df.drop(columns=["label"])
+    # Build dataframe for DGCyTOF preprocessing (requires a 'label' column)
+    df_train = train_data.copy()
+    df_train["label"] = train_labels_zero
 
-    if y_data.empty:
+    # --- DGCyTOF preprocessing (filters unlabeled rows, normalizes, etc.) ---
+    X_train_proc, y_train_proc, _ = DGCyTOF.preprocessing(df_train, [])
+
+    if y_train_proc.empty:
         raise ValueError("No labeled rows available after preprocessing.")
-    y_data = y_data.astype(int)
-    classes = sorted(y_data.unique())
+
+    y_train_proc = y_train_proc.astype(int)
+    classes = sorted(y_train_proc.unique())
     num_classes = len(classes)
+
     if num_classes < 2:
-        raise ValueError("DGCyTOF requires at least two classes to train.")
+        raise ValueError("Need at least two classes to train the classifier.")
 
-    val_size = 0.2
-    if len(y_data) * val_size < 1:
-        val_size = 0.2 if len(y_data) > 2 else 0.5
-
-    try:
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_data_labeled,
-            y_data,
-            test_size=val_size,
-            stratify=y_data,
-            random_state=random_state,
-        )
-    except ValueError:
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_data_labeled,
-            y_data,
-            test_size=val_size,
-            stratify=None,
-            random_state=random_state,
-        )
-
+    # --- Build PyTorch training dataset with 100% of training rows ---
     train_dataset = TensorDataset(
-        torch.tensor(X_train.values, dtype=torch.float32),
-        torch.tensor(y_train.values.astype(np.int64)),
-    )
-    val_dataset = TensorDataset(
-        torch.tensor(X_val.values, dtype=torch.float32),
-        torch.tensor(y_val.values.astype(np.int64)),
+        torch.tensor(X_train_proc.values, dtype=torch.float32),
+        torch.tensor(y_train_proc.values.astype(np.int64)),
     )
 
-    model_fc = SimpleClassifier(
-        input_dim=X_data_labeled.shape[1], num_classes=num_classes
+    # --- Initialize model ---
+    model = SimpleClassifier(
+        input_dim=X_train_proc.shape[1],
+        num_classes=num_classes
     )
 
     train_params = {
@@ -184,41 +168,65 @@ def run_dgcytof(data, labels, random_state=42):
         "shuffle": True,
         "num_workers": 0,
     }
-    val_params = {
-        "batch_size": min(10000, len(val_dataset)),
-        "shuffle": False,
-        "num_workers": 0,
-    }
 
+    # --- Train using all training data ---
     DGCyTOF.train_model(
-        model_fc, train_dataset, max_epochs=20, params_train=train_params
+        model,
+        train_dataset,
+        max_epochs=20,
+        params_train=train_params
     )
-    # Prints accuracy; side effect is fine for benchmarking visibility.
-    DGCyTOF.validate_model(model_fc, val_dataset, classes, params_val=val_params)
 
-    model_fc.eval()
+    # --- Predict on TEST data ONLY ---
+    model.eval()
+    test_tensor = torch.tensor(test_data.values, dtype=torch.float32)
+
     with torch.no_grad():
-        full_tensor = torch.tensor(X_full.values, dtype=torch.float32)
-        outputs = model_fc(full_tensor)
-        predicted = torch.argmax(outputs, dim=1).cpu().numpy()
+        logits = model(test_tensor)
+        preds = torch.argmax(logits, dim=1).cpu().numpy()
 
-    return predicted + 1  # back to 1-based labels
+    # Return predictions in 1-based form
+    return preds + 1
 
 
 def main():
     parser = argparse.ArgumentParser(description="clustbench DGCyTOF runner")
     parser.add_argument(
-        "--data.matrix",
+        "--train.data.matrix",
         type=str,
         help="gz-compressed textfile containing the comma-separated data to be clustered.",
         required=True,
     )
     parser.add_argument(
-        "--data.true_labels",
+        "--labels_train",
         type=str,
-        help="gz-compressed textfile with the true labels; used to select a range of ks.",
+        help="gz-compressed textfile containing the comma-separated data to be clustered.",
         required=True,
     )
+    parser.add_argument(
+        "--test.data.matrix",
+        type=str,
+        help="gz-compressed textfile containing the comma-separated data to be clustered.",
+        required=True,
+    )
+    parser.add_argument(
+        "--labels_test",
+        type=str,
+        help="gz-compressed textfile containing the comma-separated data to be clustered.",
+        required=True,
+    )
+    # parser.add_argument(
+    #     "--data.matrix",
+    #     type=str,
+    #     help="gz-compressed textfile containing the comma-separated data to be clustered.",
+    #     required=True,
+    # )
+    # parser.add_argument(
+    #     "--data.true_labels",
+    #     type=str,
+    #     help="gz-compressed textfile with the true labels; used to select a range of ks.",
+    #     required=True,
+    # )
     parser.add_argument(
         "--output_dir",
         type=str,
@@ -237,12 +245,22 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    truth = load_labels(getattr(args, "data.true_labels"))
-    data_matrix = getattr(args, "data.matrix")
-    data_df = load_dataset(data_matrix)
-    predictions = run_dgcytof(data_df, truth)
+    # Load training set
+    train_matrix = load_dataset(args.train.data.matrix)
+    train_labels = load_labels(args.labels_train)
+    
+    # Load test set
+    test_matrix = load_dataset(args.test.data.matrix)
+    test_labels = load_labels(args.labels_test)
+    
+    # Predict
+    predictions = run_dgcytof(
+      train_data=train_matrix,
+      train_labels=train_labels,
+      test_data=test_matrix,
+    )
 
-    if len(predictions) != len(truth):
+    if len(predictions) != len(test_labels):
         sys.stderr.write(
             f"[dgcytof_cli] Length mismatch: predictions={len(predictions)}, "
             f"truth={len(truth)}, data_rows={len(data_df)}, "
@@ -256,7 +274,7 @@ def main():
     output_path = os.path.join(output_dir, f"{name}_predicted_labels.txt")
     output_labels = [
         "" if pd.isna(t) else f"{float(p):.1f}"
-        for p, t in zip(predictions, truth)
+        for p, t in zip(predictions, test_labels)
     ]
     np.savetxt(output_path, np.array(output_labels, dtype=str), fmt="%s")
 
