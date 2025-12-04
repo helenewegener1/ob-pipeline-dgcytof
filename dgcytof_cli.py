@@ -246,11 +246,11 @@ def main():
         sys.exit(0)
 
     # Load training set
-    train_matrix = load_dataset(args.train.data.matrix)
+    train_matrix = load_dataset(args.train_data_matrix)
     train_labels = load_labels(args.labels_train)
     
     # Load test set
-    test_matrix = load_dataset(args.test.data.matrix)
+    test_matrix = load_dataset(args.test_data_matrix)
     test_labels = load_labels(args.labels_test)
     
     # Predict
