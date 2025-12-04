@@ -194,6 +194,7 @@ def main():
     parser.add_argument(
         "--train.data.matrix",
         type=str,
+        dest="train_data_matrix",
         help="gz-compressed textfile containing the comma-separated data to be clustered.",
         required=True,
     )
@@ -206,6 +207,7 @@ def main():
     parser.add_argument(
         "--test.data.matrix",
         type=str,
+        dest="test_data_matrix",
         help="gz-compressed textfile containing the comma-separated data to be clustered.",
         required=True,
     )
